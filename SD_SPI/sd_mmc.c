@@ -113,44 +113,6 @@
 #  endif
 #endif
 
-
-/*#define driver_init                     ATPASTE2(driver, _init)
-#define driver_select_device            ATPASTE2(driver, _select_device)
-#define driver_deselect_device          ATPASTE2(driver, _deselect_device)
-#define driver_get_bus_width            ATPASTE2(driver, _get_bus_width)
-#define driver_is_high_speed_capable    ATPASTE2(driver, _is_high_speed_capable)
-#define driver_send_clock               ATPASTE2(driver, _send_clock)
-#define driver_send_cmd                 ATPASTE2(driver, _send_cmd)
-#define driver_get_response             ATPASTE2(driver, _get_response)
-#define driver_get_response_128         ATPASTE2(driver, _get_response_128)
-#define driver_adtc_start               ATPASTE2(driver, _adtc_start)
-#define driver_adtc_stop                ATPASTE2(driver, _send_cmd)
-#define driver_read_word                ATPASTE2(driver, _read_word)
-#define driver_write_word               ATPASTE2(driver, _write_word)
-#define driver_start_read_blocks        ATPASTE2(driver, _start_read_blocks)
-#define driver_wait_end_of_read_blocks  ATPASTE2(driver, _wait_end_of_read_blocks)
-#define driver_start_write_blocks       ATPASTE2(driver, _start_write_blocks)
-#define driver_wait_end_of_write_blocks ATPASTE2(driver, _wait_end_of_write_blocks)*/
-
-#define driver_init                     sd_mmc_spi_init
-#define driver_select_device            sd_mmc_spi_select_device
-#define driver_deselect_device          sd_mmc_spi_deselect_device
-#define driver_get_bus_width            sd_mmc_spi_get_bus_width
-#define driver_is_high_speed_capable    sd_mmc_spi_is_high_speed_capable
-#define driver_send_clock               sd_mmc_spi_send_clock
-#define driver_adtc_start				sd_mmc_spi_adtc_start
-#define driver_adtc_stop                sd_mmc_spi_send_cmd
-#define driver_send_cmd                 sd_mmc_spi_send_cmd
-#define driver_get_response             sd_mmc_spi_get_response
-#define driver_get_response_128         sd_mmc_spi_get_response_128
-#define driver_read_word                sd_mmc_spi_read_word
-#define driver_write_word               sd_mmc_spi_write_word
-#define driver_start_read_blocks        sd_mmc_spi_start_read_blocks
-#define driver_wait_end_of_read_blocks  sd_mmc_spi_wait_end_of_read_blocks
-#define driver_start_write_blocks       sd_mmc_spi_start_write_blocks
-#define driver_wait_end_of_write_blocks sd_mmc_spi_wait_end_of_write_blocks
-
-
 #if (!defined SD_MMC_0_CD_GPIO) || (!defined SD_MMC_0_CD_DETECT_VALUE)
 /*#  warning No pin for card detection has been defined in board.h. \
    The define SD_MMC_0_CD_GPIO, SD_MMC_0_CD_DETECT_VALUE must be added in board.h file.*/
@@ -378,13 +340,13 @@ static bool mmc_spi_op_cond(void)
 	 */
 	retry = 7150;
 	do {
-		if (!driver_send_cmd(MMC_SPI_CMD1_SEND_OP_COND, 0)) {
+		if (!sd_mmc_spi_send_cmd(MMC_SPI_CMD1_SEND_OP_COND, 0)) {
 			sd_mmc_debug("%s: CMD1 SPI Fail - Busy retry %d\n\r",
 					__func__, (int)(7150 - retry));
 			return false;
 		}
 		// Check busy flag
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (!(resp & R1_SPI_IDLE)) {
 			break;
 		}
@@ -395,12 +357,12 @@ static bool mmc_spi_op_cond(void)
 	} while (1);
 
 	// Read OCR for SPI mode
-	if (!driver_send_cmd(SDMMC_SPI_CMD58_READ_OCR, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD58_READ_OCR, 0)) {
 		sd_mmc_debug("%s: CMD58 Fail\n\r", __func__);
 		return false;
 	}
 	// Check OCR value
-	if ((driver_get_response() & OCR_ACCESS_MODE_MASK)
+	if ((sd_mmc_spi_get_response() & OCR_ACCESS_MODE_MASK)
 			== OCR_ACCESS_MODE_SECTOR) {
 		sd_mmc_card->type |= CARD_TYPE_HC;
 	}
@@ -425,14 +387,14 @@ static bool mmc_mci_op_cond(void)
 	 */
 	retry = 4200;
 	do {
-		if (!driver_send_cmd(MMC_MCI_CMD1_SEND_OP_COND,
+		if (!sd_mmc_spi_send_cmd(MMC_MCI_CMD1_SEND_OP_COND,
 				SD_MMC_VOLTAGE_SUPPORT | OCR_ACCESS_MODE_SECTOR)) {
 			sd_mmc_debug("%s: CMD1 MCI Fail - Busy retry %d\n\r",
 					__func__, (int)(4200 - retry));
 			return false;
 		}
 		// Check busy flag
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (resp & OCR_POWER_UP_BUSY) {
 			// Check OCR value
 			if ((resp & OCR_ACCESS_MODE_MASK)
@@ -471,7 +433,7 @@ static bool sd_spi_op_cond(uint8_t v2)
 	do {
 		// CMD55 - Indicate to the card that the next command is an
 		// application specific command rather than a standard command.
-		if (!driver_send_cmd(SDMMC_CMD55_APP_CMD, 0)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD55_APP_CMD, 0)) {
 			sd_mmc_debug("%s: CMD55 Fail\n\r", __func__);
 			return false;
 		}
@@ -482,11 +444,11 @@ static bool sd_spi_op_cond(uint8_t v2)
 			arg |= SD_ACMD41_HCS;
 		}
 		// Check response
-		if (!driver_send_cmd(SD_SPI_ACMD41_SD_SEND_OP_COND, arg)) {
+		if (!sd_mmc_spi_send_cmd(SD_SPI_ACMD41_SD_SEND_OP_COND, arg)) {
 			sd_mmc_debug("%s: ACMD41 Fail\n\r", __func__);
 			return false;
 		}
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (!(resp & R1_SPI_IDLE)) {
 			// Card is ready
 			break;
@@ -499,11 +461,11 @@ static bool sd_spi_op_cond(uint8_t v2)
 	} while (1);
 
 	// Read OCR for SPI mode
-	if (!driver_send_cmd(SDMMC_SPI_CMD58_READ_OCR, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD58_READ_OCR, 0)) {
 		sd_mmc_debug("%s: CMD58 Fail\n\r", __func__);
 		return false;
 	}
-	if ((driver_get_response() & OCR_CCS) != 0) {
+	if ((sd_mmc_spi_get_response() & OCR_CCS) != 0) {
 		sd_mmc_card->type |= CARD_TYPE_HC;
 	}
 	return true;
@@ -533,7 +495,7 @@ static bool sd_mci_op_cond(uint8_t v2)
 	do {
 		// CMD55 - Indicate to the card that the next command is an
 		// application specific command rather than a standard command.
-		if (!driver_send_cmd(SDMMC_CMD55_APP_CMD, 0)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD55_APP_CMD, 0)) {
 			sd_mmc_debug("%s: CMD55 Fail\n\r", __func__);
 			return false;
 		}
@@ -544,11 +506,11 @@ static bool sd_mci_op_cond(uint8_t v2)
 			arg |= SD_ACMD41_HCS;
 		}
 		// Check response
-		if (!driver_send_cmd(SD_MCI_ACMD41_SD_SEND_OP_COND, arg)) {
+		if (!sd_mmc_spi_send_cmd(SD_MCI_ACMD41_SD_SEND_OP_COND, arg)) {
 			sd_mmc_debug("%s: ACMD41 Fail\n\r", __func__);
 			return false;
 		}
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (resp & OCR_POWER_UP_BUSY) {
 			// Card is ready
 			if ((resp & OCR_CCS) != 0) {
@@ -580,11 +542,11 @@ static bool sdio_op_cond(void)
 	uint32_t resp;
 
 	// CMD5 - SDIO send operation condition (OCR) command.
-	if (!driver_send_cmd(SDIO_CMD5_SEND_OP_COND, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDIO_CMD5_SEND_OP_COND, 0)) {
 		sd_mmc_debug("%s: CMD5 Fail\n\r", __func__);
 		return true; // No error but card type not updated
 	}
-	resp = driver_get_response();
+	resp = sd_mmc_spi_get_response();
 	if ((resp & OCR_SDIO_NF) == 0) {
 		return true; // No error but card type not updated
 	}
@@ -598,12 +560,12 @@ static bool sdio_op_cond(void)
 	uint32_t cmd5_retry = 5000;
 	while (1) {
 		// CMD5 - SDIO send operation condition (OCR) command.
-		if (!driver_send_cmd(SDIO_CMD5_SEND_OP_COND,
+		if (!sd_mmc_spi_send_cmd(SDIO_CMD5_SEND_OP_COND,
 				resp & SD_MMC_VOLTAGE_SUPPORT)) {
 			sd_mmc_debug("%s: CMD5 Fail\n\r", __func__);
 			return false;
 		}
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if ((resp & OCR_POWER_UP_BUSY) == OCR_POWER_UP_BUSY) {
 			break;
 		}
@@ -803,7 +765,7 @@ static bool sd_cm6_set_high_speed(void)
 {
 	uint8_t switch_status[SD_SW_STATUS_BSIZE] = {0};
 
-	if (!driver_adtc_start(SD_CMD6_SWITCH_FUNC,
+	if (!sd_mmc_spi_adtc_start(SD_CMD6_SWITCH_FUNC,
 			SD_CMD6_MODE_SWITCH
 			| SD_CMD6_GRP6_NO_INFLUENCE
 			| SD_CMD6_GRP5_NO_INFLUENCE
@@ -814,14 +776,14 @@ static bool sd_cm6_set_high_speed(void)
 			SD_SW_STATUS_BSIZE, 1, true)) {
 		return false;
 	}
-	if (!driver_start_read_blocks(switch_status, 1)) {
+	if (!sd_mmc_spi_start_read_blocks(switch_status, 1)) {
 		return false;
 	}
-	if (!driver_wait_end_of_read_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_read_blocks()) {
 		return false;
 	}
 
-	if (driver_get_response() & CARD_STATUS_SWITCH_ERROR) {
+	if (sd_mmc_spi_get_response() & CARD_STATUS_SWITCH_ERROR) {
 		sd_mmc_debug("%s: CMD6 CARD_STATUS_SWITCH_ERROR\n\r", __func__);
 		return false;
 	}
@@ -836,7 +798,7 @@ static bool sd_cm6_set_high_speed(void)
 	}
 	// CMD6 function switching period is within 8 clocks
 	// after the end bit of status data.
-	driver_send_clock();
+	sd_mmc_spi_send_clock();
 	sd_mmc_card->high_speed = 1;
 	sd_mmc_card->clock *= 2;
 	return true;
@@ -873,10 +835,10 @@ static bool mmc_cmd6_set_bus_width(uint8_t bus_width)
 				| MMC_CMD6_VALUE_BUS_WIDTH_1BIT;
 		break;
 	}
-	if (!driver_send_cmd(MMC_CMD6_SWITCH, arg)) {
+	if (!sd_mmc_spi_send_cmd(MMC_CMD6_SWITCH, arg)) {
 		return false;
 	}
-	if (driver_get_response() & CARD_STATUS_SWITCH_ERROR) {
+	if (sd_mmc_spi_get_response() & CARD_STATUS_SWITCH_ERROR) {
 		// No supported, it is not a protocol error
 		sd_mmc_debug("%s: CMD6 CARD_STATUS_SWITCH_ERROR\n\r", __func__);
 		return false;
@@ -897,13 +859,13 @@ static bool mmc_cmd6_set_bus_width(uint8_t bus_width)
  */
 static bool mmc_cmd6_set_high_speed(void)
 {
-	if (!driver_send_cmd(MMC_CMD6_SWITCH,
+	if (!sd_mmc_spi_send_cmd(MMC_CMD6_SWITCH,
 			MMC_CMD6_ACCESS_WRITE_BYTE
 			| MMC_CMD6_INDEX_HS_TIMING
 			| MMC_CMD6_VALUE_HS_TIMING_ENABLE)) {
 		return false;
 	}
-	if (driver_get_response() & CARD_STATUS_SWITCH_ERROR) {
+	if (sd_mmc_spi_get_response() & CARD_STATUS_SWITCH_ERROR) {
 		// No supported, it is not a protocol error
 		sd_mmc_debug("%s: CMD6 CARD_STATUS_SWITCH_ERROR\n\r", __func__);
 		return false;
@@ -932,12 +894,12 @@ static bool sd_cmd8(uint8_t * v2)
 
 	*v2 = 0;
 	// Test for SD version 2
-	if (!driver_send_cmd(SD_CMD8_SEND_IF_COND,
+	if (!sd_mmc_spi_send_cmd(SD_CMD8_SEND_IF_COND,
 			SD_CMD8_PATTERN | SD_CMD8_HIGH_VOLTAGE)) {
 		return true; // It is not a V2
 	}
 	// Check R7 response
-	resp = driver_get_response();
+	resp = sd_mmc_spi_get_response();
 	if (resp == 0xFFFFFFFF) {
 		// No compliance R7 value
 		return true; // It is not a V2
@@ -967,7 +929,7 @@ static bool mmc_cmd8(uint8_t *b_authorize_high_speed)
 	uint32_t ext_csd;
 	uint32_t sec_count;
 
-	if (!driver_adtc_start(MMC_CMD8_SEND_EXT_CSD, 0,
+	if (!sd_mmc_spi_adtc_start(MMC_CMD8_SEND_EXT_CSD, 0,
 			EXT_CSD_BSIZE, 1, false)) {
 		return false;
 	}
@@ -977,7 +939,7 @@ static bool mmc_cmd8(uint8_t *b_authorize_high_speed)
 
 	// Read card type
 	for (i = 0; i < (EXT_CSD_CARD_TYPE_INDEX + 4) / 4; i++) {
-		if (!driver_read_word(&ext_csd)) {
+		if (!sd_mmc_spi_read_word(&ext_csd)) {
 			return false;
 		}
 	}
@@ -988,14 +950,14 @@ static bool mmc_cmd8(uint8_t *b_authorize_high_speed)
 		// For high capacity SD/MMC card,
 		// memory capacity = SEC_COUNT * 512 byte
 		for (; i <(EXT_CSD_SEC_COUNT_INDEX + 4) / 4; i++) {
-			if (!driver_read_word(&sec_count)) {
+			if (!sd_mmc_spi_read_word(&sec_count)) {
 				return false;
 			}
 		}
 		sd_mmc_card->capacity = sec_count / 2;
 	}
 	for (; i < EXT_CSD_BSIZE / 4; i++) {
-		if (!driver_read_word(&sec_count)) {
+		if (!sd_mmc_spi_read_word(&sec_count)) {
 			return false;
 		}
 	}
@@ -1010,14 +972,14 @@ static bool mmc_cmd8(uint8_t *b_authorize_high_speed)
  */
 static bool sd_mmc_cmd9_spi(void)
 {
-	if (!driver_adtc_start(SDMMC_SPI_CMD9_SEND_CSD, (uint32_t)sd_mmc_card->rca << 16,
+	if (!sd_mmc_spi_adtc_start(SDMMC_SPI_CMD9_SEND_CSD, (uint32_t)sd_mmc_card->rca << 16,
 			CSD_REG_BSIZE, 1, true)) {
 		return false;
 	}
-	if (!driver_start_read_blocks(sd_mmc_card->csd, 1)) {
+	if (!sd_mmc_spi_start_read_blocks(sd_mmc_card->csd, 1)) {
 		return false;
 	}
-	return driver_wait_end_of_read_blocks();
+	return sd_mmc_spi_wait_end_of_read_blocks();
 }
 
 /**
@@ -1028,10 +990,10 @@ static bool sd_mmc_cmd9_spi(void)
  */
 static bool sd_mmc_cmd9_mci(void)
 {
-	if (!driver_send_cmd(SDMMC_MCI_CMD9_SEND_CSD, (uint32_t)sd_mmc_card->rca << 16)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_MCI_CMD9_SEND_CSD, (uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
-	driver_get_response_128(sd_mmc_card->csd);
+	sd_mmc_spi_get_response_128(sd_mmc_card->csd);
 	return true;
 }
 
@@ -1154,20 +1116,20 @@ static bool sd_mmc_cmd13(void)
 	nec_timeout = 200000;
 	do {
 		if (sd_mmc_is_spi()) {
-			if (!driver_send_cmd(SDMMC_SPI_CMD13_SEND_STATUS, 0)) {
+			if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD13_SEND_STATUS, 0)) {
 				return false;
 			}
 			// Check busy flag
-			if (!(driver_get_response() & 0xFF)) {
+			if (!(sd_mmc_spi_get_response() & 0xFF)) {
 				break;
 			}
 		} else {
-			if (!driver_send_cmd(SDMMC_MCI_CMD13_SEND_STATUS,
+			if (!sd_mmc_spi_send_cmd(SDMMC_MCI_CMD13_SEND_STATUS,
 					(uint32_t)sd_mmc_card->rca << 16)) {
 				return false;
 			}
 			// Check busy flag
-			if (driver_get_response() & CARD_STATUS_READY_FOR_DATA) {
+			if (sd_mmc_spi_get_response() & CARD_STATUS_READY_FOR_DATA) {
 				break;
 			}
 		}
@@ -1196,7 +1158,7 @@ static bool sdio_cmd52(uint8_t rw_flag, uint8_t func_nb,
 		uint32_t reg_addr, uint8_t rd_after_wr, uint8_t *io_data)
 {
 	Assert(io_data != NULL);
-	if (!driver_send_cmd(SDIO_CMD52_IO_RW_DIRECT,
+	if (!sd_mmc_spi_send_cmd(SDIO_CMD52_IO_RW_DIRECT,
 		((uint32_t)*io_data << SDIO_CMD52_WR_DATA)
 		| ((uint32_t)rw_flag << SDIO_CMD52_RW_FLAG)
 		| ((uint32_t)func_nb << SDIO_CMD52_FUNCTION_NUM)
@@ -1204,7 +1166,7 @@ static bool sdio_cmd52(uint8_t rw_flag, uint8_t func_nb,
 		| ((uint32_t)reg_addr << SDIO_CMD52_REG_ADRR))) {
 		return false;
 	}
-	*io_data = driver_get_response() & 0xFF;
+	*io_data = sd_mmc_spi_get_response() & 0xFF;
 	return true;
 }
 
@@ -1229,7 +1191,7 @@ static bool sdio_cmd53(uint8_t rw_flag, uint8_t func_nb, uint32_t reg_addr,
 	Assert(size != 0);
 	Assert(size <= 512);
 
-	return driver_adtc_start((rw_flag == SDIO_CMD53_READ_FLAG)?
+	return sd_mmc_spi_adtc_start((rw_flag == SDIO_CMD53_READ_FLAG)?
 			SDIO_CMD53_IO_R_BYTE_EXTENDED :
 			SDIO_CMD53_IO_W_BYTE_EXTENDED,
 			((size % 512) << SDIO_CMD53_COUNT)
@@ -1251,11 +1213,11 @@ static bool sd_acmd6(void)
 {
 	// CMD55 - Indicate to the card that the next command is an
 	// application specific command rather than a standard command.
-	if (!driver_send_cmd(SDMMC_CMD55_APP_CMD, (uint32_t)sd_mmc_card->rca << 16)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD55_APP_CMD, (uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
 	// 10b = 4 bits bus
-	if (!driver_send_cmd(SD_ACMD6_SET_BUS_WIDTH, 0x2)) {
+	if (!sd_mmc_spi_send_cmd(SD_ACMD6_SET_BUS_WIDTH, 0x2)) {
 		return false;
 	}
 	sd_mmc_card->bus_width = 4;
@@ -1280,17 +1242,17 @@ static bool sd_acmd51(void)
 
 	// CMD55 - Indicate to the card that the next command is an
 	// application specific command rather than a standard command.
-	if (!driver_send_cmd(SDMMC_CMD55_APP_CMD, (uint32_t)sd_mmc_card->rca << 16)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD55_APP_CMD, (uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
-	if (!driver_adtc_start(SD_ACMD51_SEND_SCR, 0,
+	if (!sd_mmc_spi_adtc_start(SD_ACMD51_SEND_SCR, 0,
 			SD_SCR_REG_BSIZE, 1, true)) {
 		return false;
 	}
-	if (!driver_start_read_blocks(scr, 1)) {
+	if (!sd_mmc_spi_start_read_blocks(scr, 1)) {
 		return false;
 	}
-	if (!driver_wait_end_of_read_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_read_blocks()) {
 		return false;
 	}
 
@@ -1386,6 +1348,7 @@ static sd_mmc_err_t sd_mmc_select_slot(uint8_t slot)
 	sd_mmc_slot_sel = slot;
 	sd_mmc_card = &sd_mmc_cards[slot];
 	sd_mmc_configure_slot();
+	sd_mmc_cs_select();
 	return (sd_mmc_cards[slot].state == SD_MMC_CARD_STATE_INIT) ?
 			SD_MMC_INIT_ONGOING : SD_MMC_OK;
 }
@@ -1407,7 +1370,7 @@ static void sd_mmc_cs_deselect()
  */
 static void sd_mmc_configure_slot(void)
 {
-	driver_select_device(sd_mmc_slot_sel, sd_mmc_card->clock,
+	sd_mmc_spi_select_device(sd_mmc_slot_sel, sd_mmc_card->clock,
 			sd_mmc_card->bus_width, sd_mmc_card->high_speed);
 }
 
@@ -1417,7 +1380,8 @@ static void sd_mmc_configure_slot(void)
 static void sd_mmc_deselect_slot(void)
 {
 	if (sd_mmc_slot_sel < SD_MMC_MEM_CNT) {
-		driver_deselect_device(sd_mmc_slot_sel);
+		sd_mmc_cs_deselect();
+		sd_mmc_spi_deselect_device(sd_mmc_slot_sel);
 	}
 }
 
@@ -1444,11 +1408,11 @@ static bool sd_mmc_spi_card_init(void)
 
 	sd_mmc_cs_deselect();
 	// Card need of 74 cycles clock minimum to start
-	driver_send_clock();
+	sd_mmc_spi_send_clock();
 
 	sd_mmc_cs_select();
 	// CMD0 - Reset all cards to idle state.
-	if (!driver_send_cmd(SDMMC_SPI_CMD0_GO_IDLE_STATE, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD0_GO_IDLE_STATE, 0)) {
 		return false;
 	}
 	if (!sd_cmd8(&v2)) {
@@ -1474,7 +1438,7 @@ static bool sd_mmc_spi_card_init(void)
 		 * (H&D wireless card - HDG104 WiFi SIP)
 		 * and the command is send only on SD card.
 		 */
-		if (!driver_send_cmd(SDMMC_SPI_CMD59_CRC_ON_OFF, 0)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD59_CRC_ON_OFF, 0)) {
 			return false;
 		}
 	}
@@ -1498,7 +1462,7 @@ static bool sd_mmc_spi_card_init(void)
 	// SD MEMORY not HC, Set default block size
 	if ((sd_mmc_card->type & CARD_TYPE_SD) &&
 			(0 == (sd_mmc_card->type & CARD_TYPE_HC))) {
-		if (!driver_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
 			return false;
 		}
 	}
@@ -1538,7 +1502,7 @@ static bool sd_mmc_mci_card_init(void)
 	sd_mmc_debug("Start SD card install\n\r");
 
 	// Card need of 74 cycles clock minimum to start
-	driver_send_clock();
+	sd_mmc_spi_send_clock();
 
 #ifdef SDIO_SUPPORT_ENABLE
 	/* CMD52 Reset SDIO */
@@ -1546,7 +1510,7 @@ static bool sd_mmc_mci_card_init(void)
 #endif
 
 	// CMD0 - Reset all cards to idle state.
-	if (!driver_send_cmd(SDMMC_MCI_CMD0_GO_IDLE_STATE, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_MCI_CMD0_GO_IDLE_STATE, 0)) {
 		return false;
 	}
 	if (!sd_cmd8(&v2)) {
@@ -1570,15 +1534,15 @@ static bool sd_mmc_mci_card_init(void)
 	if (sd_mmc_card->type & CARD_TYPE_SD) {
 		// SD MEMORY, Put the Card in Identify Mode
 		// Note: The CID is not used in this stack
-		if (!driver_send_cmd(SDMMC_CMD2_ALL_SEND_CID, 0)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD2_ALL_SEND_CID, 0)) {
 			return false;
 		}
 	}
 	// Ask the card to publish a new relative address (RCA).
-	if (!driver_send_cmd(SD_CMD3_SEND_RELATIVE_ADDR, 0)) {
+	if (!sd_mmc_spi_send_cmd(SD_CMD3_SEND_RELATIVE_ADDR, 0)) {
 		return false;
 	}
-	sd_mmc_card->rca = (driver_get_response() >> 16) & 0xFFFF;
+	sd_mmc_card->rca = (sd_mmc_spi_get_response() >> 16) & 0xFFFF;
 
 	// SD MEMORY, Get the Card-Specific Data
 	if (sd_mmc_card->type & CARD_TYPE_SD) {
@@ -1588,7 +1552,7 @@ static bool sd_mmc_mci_card_init(void)
 		sd_decode_csd();
 	}
 	// Select the and put it into Transfer Mode
-	if (!driver_send_cmd(SDMMC_CMD7_SELECT_CARD_CMD,
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD7_SELECT_CARD_CMD,
 			(uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
@@ -1603,7 +1567,7 @@ static bool sd_mmc_mci_card_init(void)
 			return false;
 		}
 	}
-	if ((4 <= driver_get_bus_width(sd_mmc_slot_sel))) {
+	if ((4 <= sd_mmc_spi_get_bus_width(sd_mmc_slot_sel))) {
 		// TRY to enable 4-bit mode
 		if (IS_SDIO()) {
 			if (!sdio_cmd52_set_bus_width()) {
@@ -1618,7 +1582,7 @@ static bool sd_mmc_mci_card_init(void)
 		// Switch to selected bus mode
 		sd_mmc_configure_slot();
 	}
-	if (driver_is_high_speed_capable()) {
+	if (sd_mmc_spi_is_high_speed_capable()) {
 		// TRY to enable High-Speed Mode
 		if (IS_SDIO()) {
 			if (!sdio_cmd52_set_high_speed()) {
@@ -1637,7 +1601,7 @@ static bool sd_mmc_mci_card_init(void)
 	}
 	// SD MEMORY, Set default block size
 	if (sd_mmc_card->type & CARD_TYPE_SD) {
-		if (!driver_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
 			return false;
 		}
 	}
@@ -1659,7 +1623,7 @@ static bool sd_mmc_spi_install_mmc(void)
 	uint8_t b_authorize_high_speed;
 
 	// CMD0 - Reset all cards to idle state.
-	if (!driver_send_cmd(SDMMC_SPI_CMD0_GO_IDLE_STATE, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD0_GO_IDLE_STATE, 0)) {
 		return false;
 	}
 
@@ -1668,7 +1632,7 @@ static bool sd_mmc_spi_install_mmc(void)
 	}
 
 	// Disable CRC check for SPI mode
-	if (!driver_send_cmd(SDMMC_SPI_CMD59_CRC_ON_OFF, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_SPI_CMD59_CRC_ON_OFF, 0)) {
 		return false;
 	}
 	// Get the Card-Specific Data
@@ -1684,7 +1648,7 @@ static bool sd_mmc_spi_install_mmc(void)
 		}
 	}
 	// Set default block size
-	if (!driver_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
 		return false;
 	}
 	// Check communication
@@ -1712,7 +1676,7 @@ static bool sd_mmc_mci_install_mmc(void)
 	uint8_t b_authorize_high_speed;
 
 	// CMD0 - Reset all cards to idle state.
-	if (!driver_send_cmd(SDMMC_MCI_CMD0_GO_IDLE_STATE, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_MCI_CMD0_GO_IDLE_STATE, 0)) {
 		return false;
 	}
 
@@ -1722,12 +1686,12 @@ static bool sd_mmc_mci_install_mmc(void)
 
 	// Put the Card in Identify Mode
 	// Note: The CID is not used in this stack
-	if (!driver_send_cmd(SDMMC_CMD2_ALL_SEND_CID, 0)) {
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD2_ALL_SEND_CID, 0)) {
 		return false;
 	}
 	// Assign relative address to the card.
 	sd_mmc_card->rca = 1;
-	if (!driver_send_cmd(MMC_CMD3_SET_RELATIVE_ADDR,
+	if (!sd_mmc_spi_send_cmd(MMC_CMD3_SET_RELATIVE_ADDR,
 			(uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
@@ -1737,7 +1701,7 @@ static bool sd_mmc_mci_install_mmc(void)
 	}
 	mmc_decode_csd();
 	// Select the and put it into Transfer Mode
-	if (!driver_send_cmd(SDMMC_CMD7_SELECT_CARD_CMD,
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD7_SELECT_CARD_CMD,
 			(uint32_t)sd_mmc_card->rca << 16)) {
 		return false;
 	}
@@ -1747,15 +1711,15 @@ static bool sd_mmc_mci_install_mmc(void)
 		if (!mmc_cmd8(&b_authorize_high_speed)) {
 			return false;
 		}
-		if (4 <= driver_get_bus_width(sd_mmc_slot_sel)) {
+		if (4 <= sd_mmc_spi_get_bus_width(sd_mmc_slot_sel)) {
 			// Enable more bus width
-			if (!mmc_cmd6_set_bus_width(driver_get_bus_width(sd_mmc_slot_sel))) {
+			if (!mmc_cmd6_set_bus_width(sd_mmc_spi_get_bus_width(sd_mmc_slot_sel))) {
 				return false;
 			}
 			// Reinitialize the slot with the bus width
 			sd_mmc_configure_slot();
 		}
-		if (driver_is_high_speed_capable() && b_authorize_high_speed) {
+		if (sd_mmc_spi_is_high_speed_capable() && b_authorize_high_speed) {
 			// Enable HS
 			if (!mmc_cmd6_set_high_speed()) {
 				return false;
@@ -1775,7 +1739,7 @@ static bool sd_mmc_mci_install_mmc(void)
 		// after the end of busy of mmc_cmd6_set_high_speed()
 
 		// Set default block size
-		if (driver_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
+		if (sd_mmc_spi_send_cmd(SDMMC_CMD16_SET_BLOCKLEN, SD_MMC_BLOCK_SIZE)) {
 			return true;
 		}
 	}
@@ -1813,7 +1777,7 @@ void sd_mmc_init(void)
 
 	}
 	sd_mmc_slot_sel = 0xFF; // No slot configurated
-	driver_init();
+	sd_mmc_spi_init();
 }
 
 uint8_t sd_mmc_nb_slot(void)
@@ -1919,13 +1883,13 @@ sd_mmc_err_t sd_mmc_init_read_blocks(uint8_t slot, uint32_t start,
 		arg = (start * SD_MMC_BLOCK_SIZE);
 	}
 
-	if (!driver_adtc_start(cmd, arg, SD_MMC_BLOCK_SIZE, nb_block, true)) {
+	if (!sd_mmc_spi_adtc_start(cmd, arg, SD_MMC_BLOCK_SIZE, nb_block, true)) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
 	// Check response
 	if (sd_mmc_is_mci()) {
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (resp & CARD_STATUS_ERR_RD_WR) {
 			sd_mmc_debug("%s: Read blocks %02d resp32 0x%08x CARD_STATUS_ERR_RD_WR\n\r",
 					__func__, (int)SDMMC_CMD_GET_INDEX(cmd), resp);
@@ -1942,7 +1906,7 @@ sd_mmc_err_t sd_mmc_start_read_blocks(void *dest, uint16_t nb_block)
 {
 	Assert(sd_mmc_nb_block_remaining >= nb_block);
 
-	if (!driver_start_read_blocks(dest, nb_block)) {
+	if (!sd_mmc_spi_start_read_blocks(dest, nb_block)) {
 		sd_mmc_nb_block_remaining = 0;
 		return SD_MMC_ERR_COMM;
 	}
@@ -1952,7 +1916,7 @@ sd_mmc_err_t sd_mmc_start_read_blocks(void *dest, uint16_t nb_block)
 
 sd_mmc_err_t sd_mmc_wait_end_of_read_blocks(bool abort)
 {
-	if (!driver_wait_end_of_read_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_read_blocks()) {
 		return SD_MMC_ERR_COMM;
 	}
 	if (abort) {
@@ -1970,8 +1934,8 @@ sd_mmc_err_t sd_mmc_wait_end_of_read_blocks(bool abort)
 	// WORKAROUND for no compliance card (Atmel Internal ref. !MMC7 !SD19):
 	// The errors on this command must be ignored
 	// and one retry can be necessary in SPI mode for no compliance card.
-	if (!driver_adtc_stop(SDMMC_CMD12_STOP_TRANSMISSION, 0)) {
-		driver_adtc_stop(SDMMC_CMD12_STOP_TRANSMISSION, 0);
+	if (!sd_mmc_spi_send_cmd(SDMMC_CMD12_STOP_TRANSMISSION, 0)) {
+		sd_mmc_spi_send_cmd(SDMMC_CMD12_STOP_TRANSMISSION, 0);
 	}
 	sd_mmc_deselect_slot();
 	return SD_MMC_OK;
@@ -2006,13 +1970,13 @@ sd_mmc_err_t sd_mmc_init_write_blocks(uint8_t slot, uint32_t start,
 	} else {
 		arg = (start * SD_MMC_BLOCK_SIZE);
 	}
-	if (!driver_adtc_start(cmd, arg, SD_MMC_BLOCK_SIZE, nb_block, true)) {
+	if (!sd_mmc_spi_adtc_start(cmd, arg, SD_MMC_BLOCK_SIZE, nb_block, true)) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
 	// Check response
 	if (sd_mmc_is_mci()) {
-		resp = driver_get_response();
+		resp = sd_mmc_spi_get_response();
 		if (resp & CARD_STATUS_ERR_RD_WR) {
 			sd_mmc_debug("%s: Write blocks %02d r1 0x%08x CARD_STATUS_ERR_RD_WR\n\r",
 					__func__, (int)SDMMC_CMD_GET_INDEX(cmd), resp);
@@ -2028,7 +1992,7 @@ sd_mmc_err_t sd_mmc_init_write_blocks(uint8_t slot, uint32_t start,
 sd_mmc_err_t sd_mmc_start_write_blocks(const void *src, uint16_t nb_block)
 {
 	Assert(sd_mmc_nb_block_remaining >= nb_block);
-	if (!driver_start_write_blocks(src, nb_block)) {
+	if (!sd_mmc_spi_start_write_blocks(src, nb_block)) {
 		sd_mmc_nb_block_remaining = 0;
 		return SD_MMC_ERR_COMM;
 	}
@@ -2038,7 +2002,7 @@ sd_mmc_err_t sd_mmc_start_write_blocks(const void *src, uint16_t nb_block)
 
 sd_mmc_err_t sd_mmc_wait_end_of_write_blocks(bool abort)
 {
-	if (!driver_wait_end_of_write_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_write_blocks()) {
 		return SD_MMC_ERR_COMM;
 	}
 	if (abort) {
@@ -2057,7 +2021,7 @@ sd_mmc_err_t sd_mmc_wait_end_of_write_blocks(bool abort)
 	if (sd_mmc_is_mci()) {
 		// Note: SPI multiblock writes terminate using a special
 		// token, not a STOP_TRANSMISSION request.
-		if (!driver_adtc_stop(SDMMC_CMD12_STOP_TRANSMISSION, 0)) {
+		if (!sd_mmc_spi_send_cmd(SDMMC_CMD12_STOP_TRANSMISSION, 0)) {
 			sd_mmc_deselect_slot();
 			return SD_MMC_ERR_COMM;
 		}
@@ -2127,11 +2091,11 @@ sd_mmc_err_t sdio_read_extended(uint8_t slot, uint8_t func_num, uint32_t addr,
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
-	if (!driver_start_read_blocks(dest, 1)) {
+	if (!sd_mmc_spi_start_read_blocks(dest, 1)) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
-	if (!driver_wait_end_of_read_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_read_blocks()) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
@@ -2159,11 +2123,11 @@ sd_mmc_err_t sdio_write_extended(uint8_t slot, uint8_t func_num, uint32_t addr,
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
-	if (!driver_start_write_blocks(src, 1)) {
+	if (!sd_mmc_spi_start_write_blocks(src, 1)) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}
-	if (!driver_wait_end_of_write_blocks()) {
+	if (!sd_mmc_spi_wait_end_of_write_blocks()) {
 		sd_mmc_deselect_slot();
 		return SD_MMC_ERR_COMM;
 	}

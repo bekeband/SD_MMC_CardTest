@@ -84,22 +84,6 @@ static SPI_HandleTypeDef 	sd_spi2_handle;
 //#  define spi_setup_device  spi_master_setup_device
 #endif
 
-/*// Link common functions to the driver used (spi or usart_spi)
-#define sd_mmc_spi_drv_device           ATPASTE2(driver, _device)
-#define sd_mmc_spi_drv_setup_device     ATPASTE2(driver, _setup_device)
-#define sd_mmc_spi_drv_select_device    ATPASTE2(driver, _select_device)
-#define sd_mmc_spi_drv_deselect_device  ATPASTE2(driver, _deselect_device)
-#define sd_mmc_spi_drv_write_packet     ATPASTE2(driver, _write_packet)
-#define sd_mmc_spi_drv_read_packet      ATPASTE2(driver, _read_packet)*/
-
-#define sd_mmc_spi_drv_device           spi_device
-#define sd_mmc_spi_drv_setup_device     spi_master_setup_device
-#define sd_mmc_spi_drv_select_device    spi_select_device
-#define sd_mmc_spi_drv_deselect_device  spi_deselect_device
-#define sd_mmc_spi_drv_write_packet     spi_write_packet
-#define sd_mmc_spi_drv_read_packet      spi_read_packet
-
-
 // Enable debug information for SD/MMC SPI module
 #ifdef SD_MMC_SPI_DEBUG
 #include <stdio.h>
@@ -112,7 +96,7 @@ static SPI_HandleTypeDef 	sd_spi2_handle;
 static sd_mmc_spi_errno_t sd_mmc_spi_err;
 
 //! Slot array of SPI structures
-static struct sd_mmc_spi_drv_device sd_mmc_spi_devices[] = {
+static struct spi_device sd_mmc_spi_devices[] = {
 };
 /*# define SD_MMC_SPI_CS(slot, unused) \
 		{ .id = SD_MMC_SPI_##slot##_CS},
@@ -177,7 +161,7 @@ static bool sd_mmc_spi_wait_busy(void)
 	/* Delay before check busy
 	 * Nbr timing minimum = 8 cylces
 	 */
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &line, 1);
+	spi_read_packet(&sd_spi2_handle, &line, 1);
 
 	/* Wait end of busy signal
 	 * Nec timing: 0 to unlimited
@@ -185,9 +169,9 @@ static bool sd_mmc_spi_wait_busy(void)
 	 * 200 000 * 8 cycles
 	 */
 	uint32_t nec_timeout = 200000;
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &line, 1);
+	spi_read_packet(&sd_spi2_handle, &line, 1);
 	do {
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &line, 1);
+		spi_read_packet(&sd_spi2_handle, &line, 1);
 		if (!(nec_timeout--)) {
 			return false;
 		}
@@ -215,7 +199,7 @@ static bool sd_mmc_spi_start_read_block(void)
 	 * Compute the maximum timeout:
 	 * Frequency maximum = 25MHz
 	 * 1 byte = 8 cycles
-	 * 100ms = 312500 x sd_mmc_spi_drv_read_packet() maximum
+	 * 100ms = 312500 x spi_read_packet() maximum
 	 */
 	token = 0;
 	i = 500000;
@@ -225,7 +209,7 @@ static bool sd_mmc_spi_start_read_block(void)
 			sd_mmc_spi_debug("%s: Read blocks timeout\n\r", __func__);
 			return false;
 		}
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &token, 1);
+		spi_read_packet(&sd_spi2_handle, &token, 1);
 		if (SPI_TOKEN_DATA_ERROR_VALID(token)) {
 			Assert(SPI_TOKEN_DATA_ERROR_ERRORS & token);
 			if (token & (SPI_TOKEN_DATA_ERROR_ERROR
@@ -251,7 +235,7 @@ static void sd_mmc_spi_stop_read_block(void)
 {
 	uint8_t crc[2];
 	// Read 16-bit CRC (not cheked)
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, crc, 2);
+	spi_read_packet(&sd_spi2_handle, crc, 2);
 }
 
 /**
@@ -263,7 +247,7 @@ static void sd_mmc_spi_start_write_block(void)
 	Assert(!(sd_mmc_spi_transfert_pos % sd_mmc_spi_block_size));
 	// Delay before start write block:
 	// Nwr timing minimum = 8 cylces
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &dummy, 1);
+	spi_write_packet(&sd_spi2_handle, &dummy, 1);
 	// Send start token
 	uint8_t token;
 	if (1 == sd_mmc_spi_nb_block) {
@@ -271,7 +255,7 @@ static void sd_mmc_spi_start_write_block(void)
 	} else {
 		token = SPI_TOKEN_MULTI_WRITE;
 	}
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &token, 1);
+	spi_write_packet(&sd_spi2_handle, &token, 1);
 }
 
 /**
@@ -287,9 +271,9 @@ static bool sd_mmc_spi_stop_write_block(void)
 
 	// Send CRC
 	crc = 0xFFFF; /// CRC is disabled in SPI mode
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, (uint8_t *)&crc, 2);
+	spi_write_packet(&sd_spi2_handle, (uint8_t *)&crc, 2);
 	// Receiv data response token
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &resp, 1);
+	spi_read_packet(&sd_spi2_handle, &resp, 1);
 	if (!SPI_TOKEN_DATA_RESP_VALID(resp)) {
 		sd_mmc_spi_err = SD_MMC_SPI_ERR;
 		sd_mmc_spi_debug("%s: Invalid Data Response Token 0x%x\n\r", __func__, resp);
@@ -335,10 +319,10 @@ static bool sd_mmc_spi_stop_multiwrite_block(void)
 	// Delay before start write block:
 	// Nwr timing minimum = 8 cylces
 	value = 0xFF;
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &value, 1);
+	spi_write_packet(&sd_spi2_handle, &value, 1);
 	// Send stop token
 	value = SPI_TOKEN_STOP_TRAN;
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &value, 1);
+	spi_write_packet(&sd_spi2_handle, &value, 1);
 	// Wait busy
 	if (!sd_mmc_spi_wait_busy()) {
 		sd_mmc_spi_err = SD_MMC_SPI_ERR_WRITE_TIMEOUT;
@@ -385,15 +369,17 @@ void sd_mmc_spi_select_device(uint8_t slot, uint32_t clock, uint8_t bus_width,
 	}
 #endif
 
-	sd_mmc_spi_drv_setup_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot],
+	spi_master_setup_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot],
 			0, clock, 0);
-	sd_mmc_spi_drv_select_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot]);
+//	sd_mmc_cs_select();
+	spi_select_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot]);
 }
 
 void sd_mmc_spi_deselect_device(uint8_t slot)
 {
 	sd_mmc_spi_err = SD_MMC_SPI_NO_ERR;
-	sd_mmc_spi_drv_deselect_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot]);
+//	sd_mmc_cs_deselect();
+	spi_deselect_device(&sd_spi2_handle, &sd_mmc_spi_devices[slot]);
 }
 
 void sd_mmc_spi_send_clock(void)
@@ -404,7 +390,7 @@ void sd_mmc_spi_send_clock(void)
 	sd_mmc_spi_err = SD_MMC_SPI_NO_ERR;
 	//! Send 80 cycles
 	for (i = 0; i < 10; i++) {
-		sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &dummy, 1); // 8 cycles
+		spi_write_packet(&sd_spi2_handle, &dummy, 1); // 8 cycles
 	}
 }
 
@@ -436,9 +422,9 @@ bool sd_mmc_spi_adtc_start(sdmmc_cmd_def_t cmd, uint32_t arg,
 	// 8 cycles to respect Ncs timing
 	// Note: This byte does not include start bit "0",
 	// thus it is ignored by card.
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &dummy, 1);
+	spi_write_packet(&sd_spi2_handle, &dummy, 1);
 	// Send command
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, cmd_token, sizeof(cmd_token));
+	spi_write_packet(&sd_spi2_handle, cmd_token, sizeof(cmd_token));
 
 	// Wait for response
 	// Two retry will be done to manage the Ncr timing between command and reponse
@@ -446,10 +432,10 @@ bool sd_mmc_spi_adtc_start(sdmmc_cmd_def_t cmd, uint32_t arg,
 	// WORKAROUND for no compliance card (Atmel Internal ref. SD13):
 	r1 = 0xFF;
 	// Ignore first byte because Ncr min. = 8 clock cylces
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &r1, 1);
+	spi_read_packet(&sd_spi2_handle, &r1, 1);
 	ncr_timeout = 7;
 	while (1) {
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &r1, 1); // 8 cycles
+		spi_read_packet(&sd_spi2_handle, &r1, 1); // 8 cycles
 		if ((r1 & R1_SPI_ERROR) == 0) {
 			// Valid R1 response
 			break;
@@ -499,11 +485,11 @@ bool sd_mmc_spi_adtc_start(sdmmc_cmd_def_t cmd, uint32_t arg,
 	}
 	if (cmd & SDMMC_RESP_8) {
 		sd_mmc_spi_response_32 = 0;
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, (uint8_t*) & sd_mmc_spi_response_32, 1);
+		spi_read_packet(&sd_spi2_handle, (uint8_t*) & sd_mmc_spi_response_32, 1);
 		sd_mmc_spi_response_32 = le32_to_cpu(sd_mmc_spi_response_32);
 	}
 	if (cmd & SDMMC_RESP_32) {
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, (uint8_t*) & sd_mmc_spi_response_32, 4);
+		spi_read_packet(&sd_spi2_handle, (uint8_t*) & sd_mmc_spi_response_32, 4);
 		sd_mmc_spi_response_32 = be32_to_cpu(sd_mmc_spi_response_32);
 	}
 
@@ -531,7 +517,7 @@ bool sd_mmc_spi_read_word(uint32_t* value)
 		}
 	}
 	// Read data
-	sd_mmc_spi_drv_read_packet(&sd_spi2_handle, (uint8_t*)value, 4);
+	spi_read_packet(&sd_spi2_handle, (uint8_t*)value, 4);
 	*value = le32_to_cpu(*value);
 	sd_mmc_spi_transfert_pos += 4;
 
@@ -555,7 +541,7 @@ bool sd_mmc_spi_write_word(uint32_t value)
 
 	// Write data
 	value = cpu_to_le32(value);
-	sd_mmc_spi_drv_write_packet(&sd_spi2_handle, (uint8_t*)&value, 4);
+	spi_write_packet(&sd_spi2_handle, (uint8_t*)&value, 4);
 	sd_mmc_spi_transfert_pos += 4;
 
 	if (!(sd_mmc_spi_transfert_pos % sd_mmc_spi_block_size)) {
@@ -587,7 +573,7 @@ bool sd_mmc_spi_start_read_blocks(void *dest, uint16_t nb_block)
 		}
 
 		// Read block
-		sd_mmc_spi_drv_read_packet(&sd_spi2_handle, &((uint8_t*)dest)[pos], sd_mmc_spi_block_size);
+		spi_read_packet(&sd_spi2_handle, &((uint8_t*)dest)[pos], sd_mmc_spi_block_size);
 		pos += sd_mmc_spi_block_size;
 		sd_mmc_spi_transfert_pos += sd_mmc_spi_block_size;
 
@@ -613,7 +599,7 @@ bool sd_mmc_spi_start_write_blocks(const void *src, uint16_t nb_block)
 		sd_mmc_spi_start_write_block();
 
 		// Write block
-		sd_mmc_spi_drv_write_packet(&sd_spi2_handle, &((uint8_t*)src)[pos], sd_mmc_spi_block_size);
+		spi_write_packet(&sd_spi2_handle, &((uint8_t*)src)[pos], sd_mmc_spi_block_size);
 		pos += sd_mmc_spi_block_size;
 		sd_mmc_spi_transfert_pos += sd_mmc_spi_block_size;
 

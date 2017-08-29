@@ -102,7 +102,7 @@ uint32_t spi_calc_baudrate_div(const uint32_t baudrate, uint32_t mck)
 
 	}*/
 	if (div_code > 7) return -1;
-
+	if (div_code < 3) div_code += 1;
 	return div_code;
 }
 
@@ -230,7 +230,7 @@ void spi_select_device(SPI_HandleTypeDef* handle, struct spi_device* device)
 	UNUSED(handle);
 	UNUSED(device);
 
-//	SELECT_SD();
+	//	SELECT_SD();
 
 	/**
 	 * \brief Select the given device on the SPI bus.
